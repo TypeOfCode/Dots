@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+IFS=$'\n'
+FFLAG=0
+INFO=0
+OUTPUTDIR='./'
+QUALITY=0
+
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+PURPLE='\033[1;35m'
+GRAY='\033[1;37m'
+NC='\033[0m'
+
+
+function _usage() {
+  echo "ffselect is a tool for converting files in a specified directory to a desired format."
+  echo ""
+  echo "OPTIONS:"
+  echo "    -d DIR          For setting the working directory."
+  echo "    -i FILE         For specifing a input file to convert."
+  echo "    -e EXT          Specifing files with said extension."
+  echo "    -r EXT          Conversion extension. The wanted result."
+  echo "    -o DIR          For setting the Output directory."
+  echo "    -f              Forcing if the user is root."
+  echo "    -a              For checking every folder inside of the working directory."
+  echo "    -v              Option to turn on ffmpeg output."
+  echo "    -h              Help output (this output)."
+  echo ""
+  echo "ADVANCED OPTIONS:"
+  echo "    --bitrate NUM   For setting the audio bitrate. (recomended on aac)"
+  echo "    --quality NUM   For setting the VBR (Varibale Bit Rate). (recomended on mp3)"
+  echo "    --folders       For creating inner folders acording to the origin directory"
+  echo ""
+  echo "USAGE:"
+  echo "    ffselect -d ~/Music -e flac -o ./ -r mp3"
+  echo "    ffselect 'Usao - Chariot.flac' -r mp3"
+  echo "    REQEXT = $REQEXT"
+  echo ""
+}
+
+while getopts "fd:e:ar:o:i:vh-:" OPTIONS; do
+  case "$OPTIONS" in
+    -)
+      case $OPTARG in
+        bitrate)
+          BITRATE="${!OPTIND}"; OPTIND=$(($OPTIND + 1))
+          ;;
+        quality)
+          QUALITY="${!OPTIND}"; OPTIND=$(($OPTIND + 1))
+          ;;
+        folders)
+          FOLDERS=1
+      esac
+      ;;
+    f)
+      FFLAG=1
+      ;;
+    d)
+      DFLAG=1
+      WORKDIR=$OPTARG
+      ;;
+    e)
+      EFLAG=1
+      EXT=$OPTARG
+      ;;
+    a)
+      AFLAG=1
+      ;;
+    r)
+      RFLAG=1
+      REQEXT=$OPTARG
+      ;;
+    o)
+      OFLAG=1
+      OUTPUTDIR=$OPTARG
+      ;;
+    i)
+      INPUT=$OPTARG
+      ;;
+    v)
+      INFO=1
+      ;;
+    h)
+      _usage
+      exit
+      ;;
+  esac
+done
+
+read -p $'\033[1;35m'"==> "$'\033[0m'"This script only supports converting to mp3 and aac for now. Continue [y/N]: " WARN
+
+case $WARN in
+  [yY] | [yY][eE][sS])
+    clear
+    ;;
+  [nN] | [nN][oO])
+    exit
+    ;;
+  *)
+    exit
+    ;;
+esac
+
+if [ $EUID == 0 -a $FFLAG == 0 ]; then
+  echo "Please don't run this as root or pass in -f option"
+  exit
+fi
+
+if [ $REQEXT == 'aac' ]; then
+  if [ ! $BITRATE ]; then
+    read -p $'\033[1;35m'"==> "$'\033[0m'"It's generaly recomended to use bitrate when converting to $REQEXT (--bitrate 128). Continue? [y/N]: " AACWARN
+
+    case $AACWARN in
+      [yY] | [yY][eE][sS])
+        clear
+        echo -e "${PURPLE}==> ${NC}Preceding..."
+        ;;
+      [nN] | [nN][oO])
+        exit
+        ;;
+      *)
+        echo -e "${PURPLE}==> ${NC}Exiting as default..."
+        exit
+        ;;
+    esac
+  fi
+fi
+
+if [ $WORKDIR ]; then
+  if [ $EXT ]; then
+    if [ $REQEXT ]; then
+      if [ $AFLAG ]; then
+        FILES=$(ls "$WORKDIR"/**.$EXT "$WORKDIR"/**/*.$EXT)
+      else
+        FILES=$(ls "$WORKDIR"/*.$EXT)
+      fi
+
+      NAMES=()
+      for FILE in $FILES; do
+        NAMES+=($(basename -- ${FILE%.*}))
+      done
+
+      if [ ! -d $OUTPUTDIR ]; then
+        read -p $'\033[1;35m'"==> "$'\033[0m'"'$OUTPUTDIR' doesn't exist. Create it? [Y/n]: " ERROUTDIR
+
+        case $ERROUTDIR in
+          [yY] | [yY][eE][sS])
+            mkdir -p $OUTPUTDIR
+            echo -e "${GREEN}<== ${NC}'${OUTPUTDIR}' Created. ${GREEN}Preceding..."
+            ;;
+          [nN] | [nN][oO])
+            echo -e "${RED}<== Unable to continue as '${OUTPUTDIR}' doesn't exist"
+            exit
+            ;;
+          *)
+            echo -e "${GREEN}<== ${NC}Creating '${OUTPUTDIR}' as ${PURPLE}defaulted..."
+            mkdir -p $OUTPUTDIR
+            ;;
+        esac
+      fi
+      
+      if [ $FOLDERS ]; then
+        DEFOUTPUT=$OUTPUTDIR
+      fi
+
+      AMOUNT=0
+      for FILE in $FILES; do
+        ((AMOUNT++))
+      done
+
+      INDEX=0
+      for FILE in $FILES; do
+        MESG="Done"
+        MESGCOL="${GREEN}"
+
+        if [ $FOLDERS ]; then
+          TEMP=$DEFOUTPUT/${FILE//$WORKDIR/}
+          OUTPUTDIR=${TEMP//$(basename -- $FILE)}
+          if [ ! -d OUTPUTDIR ]; then
+            mkdir -p $OUTPUTDIR
+          fi
+        fi
+
+        echo -e "${GREEN}==> ${NC}${NAMES[$INDEX]}.$EXT  ${GREEN}=>  ${RED}${NAMES[$INDEX]}.$REQEXT... [$INDEX/$AMOUNT]"
+
+        if [ -f $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT ]; then
+          echo ''
+          read -p $'\033[1;35m'"==> "$'\033[0m'"Duplicate Warning: ${NAMES[$INDEX]}.$REQEXT already exists in '$OUTPUTDIR'. Replace? [y/N]: " ERRDUP
+
+          case $ERRDUP in
+            [yY] | [yY][eE][sS])
+              MESG="Replaced"
+              MESGCOL="${PURPLE}"
+              ADDOPT="-y"
+              ;;
+            [nN] | [nN][oO])
+              MESG="Ignored"
+              MESGCOL="${GRAY}"
+              ADDOPT="-n"
+              ;;
+            *)
+              MESG="Ignored"
+              MESGCOL="$GRAY"
+              ADDOPT="-n"
+              ;;
+          esac
+        fi
+
+        if [ $REQEXT == 'aac' ]; then
+          if [ $INFO == 1 ]; then
+            if [ $BITRATE ]; then
+              ffmpeg $ADDOPT -i $FILE -codec:a aac -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/${NAMES[$INDEX]}.${REQEXT}
+            else
+              ffmpeg $ADDOPT -i $FILE -codec:a aac -b:a $QUALITY $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT
+            fi
+          else
+            if [ $BITRATE ]; then
+              ffmpeg $ADDOPT -i $FILE -codec:a aac -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/${NAMES[$INDEX]}.${REQEXT} &> /dev/null
+            else
+              ffmpeg $ADDOPT -i $FILE -codec:a aac -b:a $QUALITY $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT &> /dev/null
+            fi
+          fi
+        elif [ $REQEXT == 'mp3' ]; then
+          if [ $INFO == 1 ]; then
+            if [ $BITRATE ]; then
+              ffmpeg $ADDOPT -i $FILE -codec:a libmp3lame -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT
+            else
+              ffmpeg $ADDOPT -i $FILE -codec:a libmp3lame -q:a $QUALITY $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT
+            fi
+          else
+            if [ $BITRATE ]; then
+              ffmpeg $ADDOPT -i $FILE -codec:a libmp3lame -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT &> /dev/null
+            else
+              ffmpeg $ADDOPT -i $FILE -codec:a libmp3lame -q:a $QUALITY $OUTPUTDIR/${NAMES[$INDEX]}.$REQEXT &> /dev/null
+            fi
+          fi
+        else
+          clear
+          echo -e "$RED==> ${NC}Format not supported or unknown"
+          exit
+        fi
+
+        if [ ! -f $FILE ]; then
+          echo ''
+          read -p $'\033[1;35m'"==> "$'\033[0m'"Error No such file or directory: $FILE. Continue [y/N]: " ERRFIND
+
+          case $ERRFIND in
+            [yY] | [yY][eE][sS])
+              MESG="Failed"
+              MESGCOL="${RED}"
+              ;;
+            [nN] | [nN][oO])
+              exit
+              ;;
+            *)
+              exit
+              ;;
+          esac
+        fi
+
+        echo -e "${GREEN}<== ${NC}${NAMES[$INDEX]}.$REQEXT $MESGCOL$MESG... [$(expr $INDEX + 1)/$AMOUNT]"
+        echo ''
+        ((INDEX++))
+      done
+
+    else
+      _usage
+      echo "-r option is not set"
+      exit
+    fi
+  else
+    _usage
+    echo "-e option is not set"
+    exit
+  fi
+else
+  NAME=$(basename -- ${INPUT%.*})
+  if [ $INPUT ]; then
+    if [ -f "$OUTPUTDIR"/$NAME.$REQEXT ]; then
+      read -p $'\033[1;35m'"==> "$'\033[0m'"File already exists in '$OUTPUTDIR' folder. Replace [y/N]: " ERRDUP
+      case $ERRDUP in
+        [yY] | [yY][eE][sS])
+          MESG="Replaced"
+          MESGCOL=$PURPLE
+          ADDOPT="-y"
+          ;;
+        [nN] | [nN][oO])
+          MESG="Ignored"
+          MESGCOL=$GRAY
+          ADDOPT="-n"
+          ;;
+        *)
+          MESG="Ignored"
+          MESGCOL=$GRAY
+          ADDOPT="-n"
+          ;;
+      esac
+      exit
+    fi
+    echo -e "$GREEN==> $NC$(basename -- $INPUT) $RED=> $NAME.${REQEXT}$NC"
+    if [ $REQEXT == 'mp3' ]; then
+      if [ INFO == 1 ]; then
+        if [ $BITRATE ]; then
+          ffmpeg $ADDOPT -i $INPUT -codec:a libmp3lame -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/$NAME.$REQEXT
+        else
+          ffmpeg $ADDOPT -i $INPUT -codec:a libmp3lame -q:a $QUALITY $OUTPUTDIR/$NAME.$REQEXT
+        fi
+      else
+        if [ $BITRATE ]; then
+          ffmpeg $ADDOPT -i $INPUT -codec:a libmp3lame -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/$NAME.$REQEXT &> /dev/null
+        else
+          ffmpeg $ADDOPT -i $INPUT -codec:a libmp3lame -q:a $QUALITY $OUTPUTDIR/$NAME.$REQEXT &> /dev/null
+        fi
+      fi
+    elif [ $REQEXT == 'aac' ]; then
+      if [ INFO == 1 ]; then
+        if [ $BITRATE ]; then
+          ffmpeg $ADDOPT -i $INPUT -codec:a aac -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/$NAME.$REQEXT
+        else
+          ffmpeg $ADDOPT -i $INPUT -codec:a aac -q:a $QUALITY $OUTPUTDIR/$NAME.$REQEXT
+        fi
+      else
+        if [ $BITRATE ]; then
+          ffmpeg $ADDOPT -i $INPUT -codec:a aac -b:a ${BITRATE%%[k]*}k $OUTPUTDIR/$NAME.$REQEXT &> /dev/null
+        else
+          ffmpeg $ADDOPT -i $INPUT -codec:a aac -q:a $QUALITY $OUTPUTDIR/$NAME.$REQEXT &> /dev/null
+        fi
+      fi
+    else
+      clear
+      echo -e "$RED==> ${NC}Format not supported or unknown: $REQEXT"
+      exit
+    fi
+  else
+    echo -e "$RED==> ${NC}Please specify either a input file (-i FILE) or a directory (-d DIR)"
+  fi
+fi
