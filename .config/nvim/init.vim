@@ -267,3 +267,6 @@ let g:coc_global_extensions = [
   \ 'coc-eslint',
   \ 'coc-json',
   \ ]
+
+""""" Syntax Highlighting for .rasi
+au BufNewFile,BufRead /*.rasi setf css
