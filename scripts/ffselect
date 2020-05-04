@@ -33,8 +33,7 @@ function _usage() {
   echo ""
   echo "USAGE:"
   echo "    ffselect -d ~/Music -e flac -o ./ -r mp3"
-  echo "    ffselect 'Usao - Chariot.flac' -r mp3"
-  echo "    REQEXT = $REQEXT"
+  echo "    ffselect -i 'Usao - Chariot.flac' -r mp3"
   echo ""
 }
 
