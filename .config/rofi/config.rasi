@@ -1,0 +1,5 @@
+configuration {
+  modi: "window,drun";
+  theme: "main";
+  kb-mode-next: "Shift+Right,Control+Tab,Super+d";
+}
