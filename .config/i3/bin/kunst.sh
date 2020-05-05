@@ -14,5 +14,5 @@ while [ -n $(pidof sxiv) ]; do
     done
     exit
   fi
-  sleep .5
+  sleep .1
 done
