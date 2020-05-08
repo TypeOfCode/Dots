@@ -33,4 +33,4 @@ And it really doesn't support that much stuff as this is not really a serious pr
 ___
 
 ## startx-xdg
-This is not really a big deal as it only changes two lines to make XDG base directory structure to work with xstart.
+This is not really a big deal as it only changes two lines to make XDG base directory structure to work with startx.
